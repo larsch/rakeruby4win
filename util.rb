@@ -243,3 +243,16 @@ def in_tmpdir
   rm_rf(path)
 end
 
+
+def find_iscc
+  if iscc = which('iscc.exe')
+    return iscc
+  else
+    glob = File.join(ENV['ProgramFiles'], 'Inno Setup*', 'iscc.exe').gsub(/\\/, '/')
+    f = Dir.glob(glob)
+    if f.empty?
+      raise "Unable to find iscc.exe from Inno Setup in PATH or #{ENV['PROGRAMFILES']}. Please install"
+    end
+    return f[0]
+  end
+end

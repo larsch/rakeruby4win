@@ -2,6 +2,8 @@ require 'uri'
 require 'util'
 require 'hpricot'
 
+MP_VERSION = "1"
+
 module Net
   autoload :HTTP, 'net/http'
   autoload :FTP, 'net/ftp'
@@ -481,11 +483,20 @@ file 'rubyinst.iss' => :update_rubyinst_iss
 file 'versions.txt' => :update_versions_txt
 
 task :update_rubyinst_iss do
+  ruby = File.join(tmpinstall_path, 'bin', 'ruby.exe')
+  ruby_version = `#{ruby} -e "puts RUBY_VERSION"`.chomp
+  ruby_patchlevel = `#{ruby} -e "puts RUBY_PATCHLEVEL"`.chomp
+  outputname = "ruby-#{ruby_version}-p#{ruby_patchlevel}-build-#{MP_VERSION}"
+  appvername = "Ruby #{ruby_version}"
+  
   content = IO.read('rubyinst.iss')
-  content.gsub(/^LicenseFile=.*$/, "LicenseFile=#{File.join(sandbox_path, 'COPYING')}")
+  content.gsub!(/^LicenseFile=.*$/, "LicenseFile=#{File.join(sandbox_path, 'COPYING')}")
+  content.gsub!(/^OutputBaseFilename=.*$/, "OutputBaseFilename=#{outputname}")
+  content.gsub!(/^AppVerName=.*$/, "AppVerName=#{appvername}")
+  File.open('rubyinst.iss', 'w') { |f| f << content }
 end
 
 task :installer => [ 'rubyinst.iss', 'versions.txt' ] do
-  
-  sys("d:\\appl\\inno setup 5\\iscc.exe", 'rubyinst.iss')
+  iscc = find_iscc
+  sys(iscc, '/Q', 'rubyinst.iss')
 end
