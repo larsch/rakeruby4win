@@ -6,15 +6,15 @@
 ; Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{83804A08-FCEB-4D58-9D81-7FCDF9560FC0}
-AppName=Ruby/MingW
-AppVerName=Ruby/MingW 1.8.7-p22
-AppPublisher=Me
+AppName=Ruby
+AppVerName=Ruby 1.8.7
+AppPublisher=Lars Christensen
 DefaultDirName={pf}\Ruby/MingW
 DefaultGroupName=Ruby/MingW
 AllowNoIcons=yes
-LicenseFile=
+LicenseFile=D:/src/rubybuild/svn/svn.ruby-lang.org/repos/ruby/trunk/COPYING
 InfoBeforeFile=versions.txt
-OutputBaseFilename=ruby-mingw-1.8.7-p22-1
+OutputBaseFilename=ruby-1.8.7-p22-build-1
 Compression=lzma
 SolidCompression=yes
 ChangesAssociations=yes
@@ -39,4 +39,51 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "tmpinstall\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
+
+[Code]
+procedure UpdatePathExt();
+var
+  PathExt: String;
+begin
+  if IsTaskSelected('pathext') then begin
+    RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'PATHEXT', PathExt);
+    StringChangeEx(PathExt, ';.RBW', '', True);
+    StringChangeEx(PathExt, ';.RB', '', True);
+    PathExt := PathExt + ';.RB;.RBW';
+    RegWriteStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'PATHEXT', PathExt);
+  end
+  
+  if IsTaskSelected('path') then begin
+    RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'PATH', PathExt);
+    StringChangeEx(PathExt, ';' + ExpandConstant('{app}') + '\bin', '', True);
+    PathExt := PathExt + ';' + ExpandConstant('{app}') + '\bin';
+    RegWriteStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'PATH', PathExt);
+  end
+end;
+
+procedure UninstallPathExt();
+var
+  PathExt: String;
+begin
+  RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'PATHEXT', PathExt);
+  StringChangeEx(PathExt, ';.RB', '', True);
+  StringChangeEx(PathExt, ';.RBW', '', True);
+  RegWriteStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'PATHEXT', PathExt);
+  
+  RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'PATH', PathExt);
+  StringChangeEx(PathExt, ';' + ExpandConstant('{app}') + '\bin', '', True);
+  RegWriteStringValue(HKEY_LOCAL_MACHINE, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'PATH', PathExt);
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+    UninstallPathExt();
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    UpdatePathExt();
+end;
 
