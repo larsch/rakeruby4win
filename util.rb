@@ -295,20 +295,20 @@ def pdcursesuri
                                   /^pdc(\d)+dll\.zip$/)
 end
 
-def find_msysbasepackages
-  msysbasesystem_downloadpage = "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=24963"
-  urls = []
-  packs = [ 'bash', 'bzip2', 'coreutils', 'findutils', 'gawk', 'lzma', 'make', 'tar' ]
-  packs.each { |pack|
-    urls << determineurl(findfile(msysbasesystem_downloadpage, /^#{pack}-.*-MSYS-\d+\.\d+\.\d+-(\d+|snapshot)(-bin)?\.tar\.(gz|bz2)$/))
-  }
-  urls << determineurl(findfile(msysbasesystem_downloadpage, /^MSYS-\d+\.\d+\.\d+-\d+\.tar\.bz2$/))
-  urls << determineurl(findfile(msysbasesystem_downloadpage, /^msysCORE-(.*).tar\.bz2$/))
-end
+# def find_msysbasepackages
+#   msysbasesystem_downloadpage = "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=24963"
+#   urls = []
+#   packs = [ 'bash', 'bzip2', 'coreutils', 'findutils', 'gawk', 'lzma', 'make', 'tar' ]
+#   packs.each { |pack|
+#     urls << determineurl(findfile(msysbasesystem_downloadpage, /^#{pack}-.*-MSYS-\d+\.\d+\.\d+-(\d+|snapshot)(-bin)?\.tar\.(gz|bz2)$/))
+#   }
+#   urls << determineurl(findfile(msysbasesystem_downloadpage, /^MSYS-\d+\.\d+\.\d+-\d+\.tar\.bz2$/))
+#   urls << determineurl(findfile(msysbasesystem_downloadpage, /^msysCORE-(.*).tar\.bz2$/))
+# end
 
-def msysbasepackages
-  $cache.msysbasepackages ||= find_msysbasepackages
-end
+# def msysbasepackages
+#   $cache.msysbasepackages ||= find_msysbasepackages
+# end
 
 def in_tmpdir
   path = File.join(WORK_ROOT, 'tmptmptmp')

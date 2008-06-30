@@ -514,26 +514,25 @@ task :installer => [ 'rubyinst.iss', 'versions.txt' ] do
   sys(iscc, '/Q', 'rubyinst.iss')
 end
 
-msysbasepackage_pkgpaths = msysbasepackages.map { |uri| File.join(PKG_PATH, File.basename(uri.path)) }
-msysbasepackages.each { |uri| ARCH_URLS[File.basename(uri.path)] = uri }
+#  msysbasepackage_pkgpaths = msysbasepackages.map { |uri| File.join(PKG_PATH, File.basename(uri.path)) }
+#  msysbasepackages.each { |uri| ARCH_URLS[File.basename(uri.path)] = uri }
 
 msysroot_checkpoint = File.join(MSYS_ROOT, 'msysrootcheckpoint')
 
 directory MSYS_ROOT
 
-file msysroot_checkpoint => [ hostprereq_checkpoint, msysbasepackage_pkgpaths ].flatten do
-  mkdir_p(MSYS_ROOT)
-  cd(MSYS_ROOT) do
-    sys("attrib -R * /S")
-    msysbasepackage_pkgpaths.each { |pkg|
-      extract(pkg)
-    }
-  end
-  touch(msysroot_checkpoint)
-end
+# file msysroot_checkpoint => [ hostprereq_checkpoint, msysbasepackage_pkgpaths ].flatten do
+#   mkdir_p(MSYS_ROOT)
+#   cd(MSYS_ROOT) do
+#     sys("attrib -R * /S")
+#     msysbasepackage_pkgpaths.each { |pkg|
+#       extract(pkg)
+#     }
+#   end
+#   touch(msysroot_checkpoint)
+# end
 
-task :root => msysroot_checkpoint
-
+# task :root => msysroot_checkpoint
 
 # Task for each downloadable file
 ARCH_URLS.each { |fn, uri|
@@ -559,6 +558,19 @@ pkggroup :mingw, hostmingw_path do
   pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=23918", /^mingw32-make-.*\.tar\.gz$/, /-src.*\.tar\.gz$/
   # win32api
   pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11550", /^w32api-.*\.tar\.gz$/, /-src\.tar\.gz$/
+end
+
+pkggroup :msys, MSYS_ROOT do
+  msys_url = "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=24963"
+  packs = [ 'bash', 'bzip2', 'coreutils', 'findutils', 'gawk', 'lzma', 'make', 'tar' ]
+  packs.each { |pack|
+    pkg msys_url, /^#{pack}-.*-MSYS-\d+\.\d+\.\d+-(\d+|snapshot)(-bin)?\.tar\.(gz|bz2)$/
+  }
+  pkg msys_url, /^MSYS-\d+\.\d+\.\d+-\d+\.tar\.bz2$/
+  pkg msys_url, /^msysCORE-(.*).tar\.bz2$/
+
+  msyssupp_url = "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=67879"
+  pkg msyssupp_url, /^autoconf2.5.*-bin\.tar\.bz2$/
 end
 
 task :testgcc => :mingw do
