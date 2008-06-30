@@ -453,7 +453,7 @@ file hostprereq_checkpoint => [ unzip_exe, HOSTPREREQ_FILES ].flatten do
   touch hostprereq_checkpoint
 end
 
-task :hostprereq => hostprereq_path
+task :hostprereq => hostprereq_checkpoint
 
 task :buildopenssl2 do
   openssl_tmppath = File.join(WORK_ROOT, 'openssl-build')
@@ -549,52 +549,6 @@ task :clean do
   rm_rf(hostmingw_path)
 end
 
-
-# pkggroup "mingw" do
-#   # gcc version 3
-#   pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=82723", /^gcc-core-.*.tar.gz$/
-#   # binutils
-#   pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11290", /^binutils-.*\d\.tar\.gz$/, /-src\.tar\.gz$/
-#   # mingw32-make
-#   pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=23918", /^mingw32-make-.*\.tar\.gz$/, /-src\.tar\.gz$/
-# end
-
-def add_pkg_uri(*uris)
-  uris.each { |uri|
-    pkg = File.join(PKG_PATH, File.basename(uri.path))
-    file pkg do
-      download(uri, pkg)
-    end
-  }
-end
-
-def pkggroup(pkgname, directory)
-  @urls = []
-  def pkg(url, re, excl_re = nil)
-    @urls << findfile(url, re, excl_re)
-  end
-  
-  yield
-  
-  pkgnames = @urls.map { |uri| File.join(PKG_PATH, File.basename(uri.path)) }
-
-  pkg_checkpoint = File.join(directory, "#{pkgname}_checkpoint")
-  
-  task pkgname => pkg_checkpoint
-
-  add_pkg_uri(*@urls)
-  
-  file pkg_checkpoint => [ directory, pkgnames ].flatten do
-    cd(directory)
-    pkgnames.each { |pkg|
-      extract(pkg)
-    }
-    touch(pkg_checkpoint)
-  end
-    
-  undef pkg
-end
-
 directory hostmingw_path
 pkggroup :mingw, hostmingw_path do
   # gcc version 3
@@ -603,4 +557,12 @@ pkggroup :mingw, hostmingw_path do
   pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11290", /^binutils-.*\d\.tar\.gz$/, /-src\.tar\.gz$/
   # mingw32-make
   pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=23918", /^mingw32-make-.*\.tar\.gz$/, /-src.*\.tar\.gz$/
+  # win32api
+  pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11550", /^w32api-.*\.tar\.gz$/, /-src\.tar\.gz$/
+end
+
+task :testgcc => :mingw do
+  gcc = File.join(hostmingw_path, 'bin', 'gcc.exe')
+  # p which("gcc.exe")
+  sys(gcc, '-E', 'test.c')
 end

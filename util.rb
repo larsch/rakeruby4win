@@ -333,3 +333,40 @@ def find_iscc
     return f[0]
   end
 end
+
+def add_pkg_uri(*uris)
+  uris.each { |uri|
+    pkg = File.join(PKG_PATH, File.basename(uri.path))
+    file pkg do
+      download(uri, pkg)
+    end
+  }
+end
+
+def pkggroup(pkgname, directory)
+  @urls = []
+  def pkg(url, re, excl_re = nil)
+    @urls << findfile(url, re, excl_re)
+  end
+  
+  yield
+  
+  pkgnames = @urls.map { |uri| File.join(PKG_PATH, File.basename(uri.path)) }
+
+  pkg_checkpoint = File.join(directory, "#{pkgname}_checkpoint")
+  
+  task pkgname => pkg_checkpoint
+
+  add_pkg_uri(*@urls)
+  
+  file pkg_checkpoint => [ directory, pkgnames ].flatten do
+    cd(directory)
+    pkgnames.each { |pkg|
+      extract(pkg)
+    }
+    touch(pkg_checkpoint)
+  end
+    
+  undef pkg
+end
+
