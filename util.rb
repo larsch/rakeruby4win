@@ -5,6 +5,7 @@ autoload :Hpricot, 'hpricot'
 autoload :URI, 'uri'
 require 'rubygems'
 gem 'hpricot'
+autoload :OpenStruct, 'ostruct'
 
 def make_path(path)
   elems = path.split(File::SEPARATOR)
@@ -25,7 +26,7 @@ def sys_k(*cmd)
   system(*cmd)
 end
 def sys(*cmd)
-  sys_k(*cmd) or exit
+  sys_k(*cmd) or raise "External command failed: #{$?.inspect}"
 end
 
 =begin
@@ -114,7 +115,7 @@ def formattimedelta(delta)
 end
 
 
-def download(uri, path)
+def download_http(uri, path)
   Net::HTTP.start(uri.host, uri.port) do |http|
     puts "GET #{uri}"
     r = http.request_get(uri.request_uri) do |response|
@@ -132,6 +133,25 @@ def download(uri, path)
         raise "Unexpected response #{response.inspect}"
       end
     end
+  end
+end
+
+def download_ftp(uri, path)
+  Net::FTP.open(uri.host, 'anonymous', 'nil') do |ftp|
+    puts "FTP RETR #{uri}"
+    ftp.chdir(File.dirname(uri.path))
+    ftp.get(File.basename(uri.path), path, 4096)
+  end
+end
+
+def download(uri, path)
+  case uri
+  when URI::HTTP
+    download_http(uri, path)
+  when URI::FTP
+    download_ftp(uri, path)
+  else
+    raise "Unhandled URI scheme: #{uri}"
   end
 end
 
@@ -156,7 +176,8 @@ class Version < Array
   include Comparable
   
   def initialize(str)
-    super(str.split(/\./).map { |x| x.to_i } )
+    parts = str.scan(/\d+|[a-z]+/).map { |x| (x =~ /^\d+$/) ? x.to_i : x }
+    super(parts)
   end
 
   def <=>(other)
@@ -165,6 +186,9 @@ class Version < Array
         return 1
       else
         c = e <=> other[i]
+        if c.nil?
+          c = e.to_s <=> other[i].to_s
+        end
         return c unless c == 0
       end
     }
@@ -177,8 +201,45 @@ def Version(str)
   Version.new(str)
 end
 
+def get_doc_do(url)
+  uri = URI.parse(url)
+  Net::HTTP.start(uri.host, uri.port) do |http|
+    puts "GET #{uri}"
+    r, d = http.get(uri.request_uri)
+    case r
+    when Net::HTTPSuccess
+      return Hpricot.parse(d)
+    when Net::HTTPRedirection
+      return get_doc_do(r['location'])
+    else
+      raise "Unexpected HTTP response: #{r}"
+    end
+  end
+end
 
-def findfile(url, re)
+def get_doc(url)
+  $cache ||= OpenStruct.new
+  $cache.docs ||= {}
+  $cache.docs[url] ||= get_doc_do(url)
+end
+
+def findfile(url, re, excl_re = nil)
+  doc = get_doc(url)
+  newestver = nil
+  newesturi = nil
+  doc.search("//a") { |a|
+    if a.inner_text =~ re and (excl_re.nil? or a.inner_text !~ excl_re)
+      ver = Version.new(a.inner_text)
+      if newestver.nil? or ver > newestver
+        newestver = ver
+        newesturi = URI.join(url, a['href'])
+      end
+    end
+  }
+  return newesturi
+end
+
+def findfilex(url, re)
   uri = URI.parse(url)
   
   newestver = nil
@@ -190,7 +251,7 @@ def findfile(url, re)
     doc = Hpricot.parse(d)
     doc.search("//a") { |a|
       if a.inner_text =~ re
-        ver = Version.new($1)
+        ver = Version.new(a.inner_text)
         if newestver.nil? or ver > newestver
           newestver = ver
           newesturi = URI.join(uri.to_s, a['href'])
@@ -203,17 +264,18 @@ def findfile(url, re)
 end
 
 def findfile_ftp(url, re)
-  uri = URI.parse(uri)
+  uri = URI.parse(url)
   filename = nil
   Net::FTP.open(uri.host, 'anonymous', 'nil') do |ftp|
     ftp.chdir(uri.path)
     ftp.list.each { |fnrow|
       if fnrow =~ /\s(unz[^-]+\.exe)$/
-        filename = fnrow
+        filename = $1
       end
     }
   end
-  return filename
+  uri.path = File.join(uri.path, filename)
+  return uri
 end
 
 def openssluri
@@ -231,6 +293,21 @@ end
 def pdcursesuri
   $cache.pdcursesuri ||= findfile("http://sourceforge.net/project/showfiles.php?group_id=30480&package_id=22452",
                                   /^pdc(\d)+dll\.zip$/)
+end
+
+def find_msysbasepackages
+  msysbasesystem_downloadpage = "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=24963"
+  urls = []
+  packs = [ 'bash', 'bzip2', 'coreutils', 'findutils', 'gawk', 'lzma', 'make', 'tar' ]
+  packs.each { |pack|
+    urls << determineurl(findfile(msysbasesystem_downloadpage, /^#{pack}-.*-MSYS-\d+\.\d+\.\d+-(\d+|snapshot)(-bin)?\.tar\.(gz|bz2)$/))
+  }
+  urls << determineurl(findfile(msysbasesystem_downloadpage, /^MSYS-\d+\.\d+\.\d+-\d+\.tar\.bz2$/))
+  urls << determineurl(findfile(msysbasesystem_downloadpage, /^msysCORE-(.*).tar\.bz2$/))
+end
+
+def msysbasepackages
+  $cache.msysbasepackages ||= find_msysbasepackages
 end
 
 def in_tmpdir

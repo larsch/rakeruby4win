@@ -2,17 +2,28 @@ require 'uri'
 require 'util'
 require 'hpricot'
 
+# Download URLs are stored in cache.bin (as a marshalled
+# OpenStruct). They will be detected the first time "rake" is run. To
+# refresh the URL's, delete "cache.bin".
+#
+# The host prereqs and MSYS directories contain a checkpoint file when
+# fully created. They will not be recreated while this file exist. To
+# recreate them, simply delete them or run "rake clean".
+
 MP_VERSION = "1"
+
+ENV['PATH'] = ""
 
 module Net
   autoload :HTTP, 'net/http'
   autoload :FTP, 'net/ftp'
 end
 autoload :Hpricot, 'hpricot'
+autoload :OpenStruct, 'ostruct'
 
 # Log run time
 START_TIME = Time.now
-at_exit { puts formattimedelta(Time.now - START_TIME) }
+at_exit { puts "Run time: " + formattimedelta(Time.now - START_TIME) }
 
 # Load cached variables
 if File.exist?('cache.bin')
@@ -28,13 +39,6 @@ at_exit do
   File.open('cache.bin', 'wb') { |f|
     f.write(Marshal.dump($cache))
   }
-end
-
-def loadmarshal(file)
-  if not File.exist?(file)
-    Rake::Task['prereqs.bin'].execute(2)
-  end
-  File.open(file, "rb") { |f| Marshal.load(f.read) }
 end
 
 #p which("svn")
@@ -78,22 +82,45 @@ GEMNAMES = [
 MSYS_ROOT = ENV['MSYS_ROOT'] || File.expand_path('root')
 WORK_ROOT = Dir.pwd
 svn_root = 'http://svn.ruby-lang.org/repos/ruby/'
-svn_path = ENV['RUBY_SVN'] || 'trunk'
+svn_path = ENV['RUBY_SVN'] || 'tags/v1_8_7_22'
 prereq_path = File.join(MSYS_ROOT, 'prereq')
 hostprereq_path = File.join(WORK_ROOT, 'hostprereq')
+ENV['PATH'] += ';' + hostprereq_path.gsub(/\//, '\\') + '\\bin'
+# p ENV['PATH']
 ENV['LIBRARY_PATH'] = '/prereq/lib'
 ENV['C_INCLUDE_PATH'] = '/prereq/include'
 ENV['CFLAGS'] = '-O2 -mtune=i686'
 ENV['RUBYOPT'] = ""
 tmpinstall_path = File.join(WORK_ROOT, 'tmpinstall')
-pkg_path = File.join(WORK_ROOT, 'pkg')
+PKG_PATH = File.join(WORK_ROOT, 'pkg')
+ARCH_URLS = {}
+hostmingw_path = File.expand_path("hostmingw")
 
 HOST_PREREQS = {
   ['gtar','tar'] => ['bin', 'dep'],
   'bzip2' => ['bin', 'dep'],
   'gzip' => ['bin', 'dep'],
-  'unzip' => ['bin', 'dep']
+  # 'unzip' => ['bin', 'dep']
 }
+
+def unzip_pkg
+  File.join(PKG_PATH, File.basename(unzipuri.path))
+end
+
+unzip_exe = File.join(hostprereq_path, 'bin', 'unzip.exe')
+bzip2_exe = File.join(hostprereq_path, 'bin', 'bzip2.exe')
+gzip_exe = File.join(hostprereq_path, 'bin', 'gzip.exe')
+tar_exe = File.join(hostprereq_path, 'bin', 'tar.exe')
+
+file unzip_exe => unzip_pkg do
+  if not File.exist?(unzip_exe)
+    unzdir = File.join(hostprereq_path, 'bin')
+    mkdir_p(unzdir)
+    cd(unzdir) do
+      sys(unzip_pkg, '-o', '-q', 'unzip.exe')
+    end
+  end
+end
 
 ############################################################################
 # Prerequisites
@@ -134,7 +161,8 @@ def gnuwin32uris(package, parts)
   end
 end
 
-file 'prereqs.bin' do
+# file 'prereqs.bin' do
+def gen_prereq_hash
   prereqs = {}
   PREREQS.each do |prereq,parts|
     gnuwin32uris(prereq, parts) do |uri|
@@ -142,10 +170,10 @@ file 'prereqs.bin' do
       prereqs[filename] = uri
     end
   end
-  File.open("prereqs.bin", "wb") { |f| f << Marshal.dump(prereqs) }
+  prereqs
 end
 
-file 'hostprereqs.bin' do
+def gen_hostprereq_hash
   prereqs = {}
   HOST_PREREQS.each do |prereq,parts|
     gnuwin32uris(prereq, parts) do |uri|
@@ -153,14 +181,13 @@ file 'hostprereqs.bin' do
       prereqs[filename] = uri
     end
   end
-  File.open("hostprereqs.bin", "wb") { |f| f << Marshal.dump(prereqs) }
+  prereqs
 end
 
-PREREQ_HASH = loadmarshal('prereqs.bin')
-PREREQ_FILES = PREREQ_HASH.keys.map { |fn| File.join(pkg_path, fn) }
-
-HOSTPREREQ_HASH = loadmarshal('hostprereqs.bin')
-HOSTPREREQ_FILES = HOSTPREREQ_HASH.keys.map { |fn| File.join(pkg_path, fn) }
+PREREQ_HASH = ($cache.prereq_hash ||= gen_prereq_hash)
+PREREQ_FILES = PREREQ_HASH.keys.map { |fn| File.join(PKG_PATH, fn) }
+HOSTPREREQ_HASH = ($cache.hostprereq_hash ||= gen_hostprereq_hash)
+HOSTPREREQ_FILES = HOSTPREREQ_HASH.keys.map { |fn| File.join(PKG_PATH, fn) }
 
 ##################################################
 svn_uri = URI.join(svn_root, svn_path)
@@ -186,7 +213,7 @@ end
 task :fresh_build => [ :update_sandbox, :build ]
 
 desc "Build Ruby"
-task :build => [ makefile ] do
+task :build => [ MSYS_ROOT, makefile ] do
   Dir.chdir(build_path) do
     msys_sh("make")
   end
@@ -206,13 +233,13 @@ task :benchmark do
   end
 end
 
-file configure_script => [ sandbox_path ] do
+file configure_script => [ sandbox_path, prereq_path ] do
   Dir.chdir(sandbox_path) do
     msys_sh("autoconf")
   end
 end
 
-file makefile => [ configure_script, build_path ] do
+file makefile => [ MSYS_ROOT, configure_script, build_path ] do
   Dir.chdir(build_path) do
     msys_sh(File.join('..', File.basename(sandbox_path), "configure --prefix=/"))
   end
@@ -246,11 +273,9 @@ task :clean_sandbox do
   rm_rf sandbox_path
 end
 
-ARCH_URLS = {}
-
 rubygemzip_uri = rubygemsuri
 rubygem_zipfile = File.basename(rubygemzip_uri.path)
-rubygem_zippath = File.join(pkg_path, rubygem_zipfile)
+rubygem_zippath = File.join(PKG_PATH, rubygem_zipfile)
 ARCH_URLS[rubygem_zipfile] = rubygemzip_uri
 
 task :install => [ :install_nodoc, :install_prereq, :install_rubygems, :install_gems ]
@@ -366,12 +391,12 @@ end
 
 pdcurses_uri = pdcursesuri
 pdcurses_filename = File.basename(pdcurses_uri.path)
-pdcurses_path = File.join(pkg_path, pdcurses_filename)
+pdcurses_path = File.join(PKG_PATH, pdcurses_filename)
 ARCH_URLS[pdcurses_filename] = pdcurses_uri
 
 openssl_uri = openssluri
 openssl_filename = File.basename(openssl_uri.path)
-openssl_path = File.join(pkg_path, openssl_filename)
+openssl_path = File.join(PKG_PATH, openssl_filename)
 ARCH_URLS[openssl_filename] = openssl_uri
 
 openssl_buildpath = File.join(WORK_ROOT, 'openssl-build')
@@ -414,27 +439,21 @@ task :getprereqs => PREREQ_FILES
   end
 end
 
-file hostprereq_path => HOSTPREREQ_FILES do
-  mkdir_p(hostprereq_path)
-  cd(hostprereq_path) do
+hostprereq_checkpoint = File.join(hostprereq_path, 'hostprereqcheckpoint')
+
+directory hostprereq_path
+
+file hostprereq_checkpoint => [ unzip_exe, HOSTPREREQ_FILES ].flatten do
+  mkdir_p hostprereq_path
+  cd hostprereq_path do
     HOSTPREREQ_FILES.each do |fn|
-      extract(fn)
+      extract fn
     end
   end
+  touch hostprereq_checkpoint
 end
 
 task :hostprereq => hostprereq_path
-
-task :clean do
-  puts "Please run one of the following:"
-  puts
-  puts "   rake clean_build    - removes the build directory"
-end
-
-task :help do
-  puts "Rakefile for building Ruby on MingW/MSYS."
-end
-
 
 task :buildopenssl2 do
   openssl_tmppath = File.join(WORK_ROOT, 'openssl-build')
@@ -459,14 +478,6 @@ task :instopenssl2 do
   end
 end
 
-# Task for each downloadable file
-ARCH_URLS.each { |fn, uri|
-  path = File.join(pkg_path, fn)
-  file path do
-    download(uri, path)
-  end
-}
-
 task :inst_test do
   Dir.entries(File.join(sandbox_path, 'test')).each { |fn|
     next if fn =~ /^\./
@@ -482,6 +493,7 @@ end
 file 'rubyinst.iss' => :update_rubyinst_iss
 file 'versions.txt' => :update_versions_txt
 
+# Update rubyinst.iss with versions etc.
 task :update_rubyinst_iss do
   ruby = File.join(tmpinstall_path, 'bin', 'ruby.exe')
   ruby_version = `#{ruby} -e "puts RUBY_VERSION"`.chomp
@@ -496,7 +508,99 @@ task :update_rubyinst_iss do
   File.open('rubyinst.iss', 'w') { |f| f << content }
 end
 
+desc "Build the Ruby for Windows installer"
 task :installer => [ 'rubyinst.iss', 'versions.txt' ] do
   iscc = find_iscc
   sys(iscc, '/Q', 'rubyinst.iss')
+end
+
+msysbasepackage_pkgpaths = msysbasepackages.map { |uri| File.join(PKG_PATH, File.basename(uri.path)) }
+msysbasepackages.each { |uri| ARCH_URLS[File.basename(uri.path)] = uri }
+
+msysroot_checkpoint = File.join(MSYS_ROOT, 'msysrootcheckpoint')
+
+directory MSYS_ROOT
+
+file msysroot_checkpoint => [ hostprereq_checkpoint, msysbasepackage_pkgpaths ].flatten do
+  mkdir_p(MSYS_ROOT)
+  cd(MSYS_ROOT) do
+    sys("attrib -R * /S")
+    msysbasepackage_pkgpaths.each { |pkg|
+      extract(pkg)
+    }
+  end
+  touch(msysroot_checkpoint)
+end
+
+task :root => msysroot_checkpoint
+
+
+# Task for each downloadable file
+ARCH_URLS.each { |fn, uri|
+  path = File.join(PKG_PATH, fn)
+  file path do
+    download(uri, path)
+  end
+}
+
+task :clean do
+  rm_rf(MSYS_ROOT)
+  rm_rf(hostprereq_path)
+  rm_rf(hostmingw_path)
+end
+
+
+# pkggroup "mingw" do
+#   # gcc version 3
+#   pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=82723", /^gcc-core-.*.tar.gz$/
+#   # binutils
+#   pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11290", /^binutils-.*\d\.tar\.gz$/, /-src\.tar\.gz$/
+#   # mingw32-make
+#   pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=23918", /^mingw32-make-.*\.tar\.gz$/, /-src\.tar\.gz$/
+# end
+
+def add_pkg_uri(*uris)
+  uris.each { |uri|
+    pkg = File.join(PKG_PATH, File.basename(uri.path))
+    file pkg do
+      download(uri, pkg)
+    end
+  }
+end
+
+def pkggroup(pkgname, directory)
+  @urls = []
+  def pkg(url, re, excl_re = nil)
+    @urls << findfile(url, re, excl_re)
+  end
+  
+  yield
+  
+  pkgnames = @urls.map { |uri| File.join(PKG_PATH, File.basename(uri.path)) }
+
+  pkg_checkpoint = File.join(directory, "#{pkgname}_checkpoint")
+  
+  task pkgname => pkg_checkpoint
+
+  add_pkg_uri(*@urls)
+  
+  file pkg_checkpoint => [ directory, pkgnames ].flatten do
+    cd(directory)
+    pkgnames.each { |pkg|
+      extract(pkg)
+    }
+    touch(pkg_checkpoint)
+  end
+    
+  undef pkg
+end
+
+directory hostmingw_path
+pkggroup :mingw, hostmingw_path do
+  # gcc version 3
+  pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=82723", /^gcc-core-.*.tar.gz$/
+  # binutils
+  pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11290", /^binutils-.*\d\.tar\.gz$/, /-src\.tar\.gz$/
+  # mingw32-make
+  pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=23918", /^mingw32-make-.*\.tar\.gz$/, /-src.*\.tar\.gz$/
 end
