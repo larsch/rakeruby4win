@@ -140,7 +140,8 @@ def download_ftp(uri, path)
   Net::FTP.open(uri.host, 'anonymous', 'nil') do |ftp|
     puts "FTP RETR #{uri}"
     ftp.chdir(File.dirname(uri.path))
-    ftp.get(File.basename(uri.path), path, 4096)
+    mkdir_p File.dirname(path)
+    ftp.getbinaryfile(File.basename(uri.path), path, 4096)
   end
 end
 
