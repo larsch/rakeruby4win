@@ -48,7 +48,6 @@ MP_VERSION = "1"
 # Detect perl
 if perl_path = which('perl')
   if `#{perl_path} -v` !~ /ActiveState/
-      p `#{perl_path} -v`
       puts "WARNING: Your Perl installation is not ActiveState. This has not been tested!"
     puts ""
     puts "Press ENTER to continue or Ctrl+C to abort . . ."
@@ -390,6 +389,24 @@ task :install_test_ext do
     ENV['PATH'] = oldpath
   end
 end
+
+############################################################################
+# GDBM gdbm-dll.h cludge
+############################################################################
+
+gdbmdllh_path = File.join(prereq_path, 'include', 'gdbm-dll.h')
+gdbmsrc_uri = findfile "http://gnuwin32.sourceforge.net/packages/gdbm.htm", /^gdbm-src-zip/
+gdbmsrc_filename = File.basename(gdbmsrc_uri.path)
+gdbmsrc_path = File.join(PKG_PATH, gdbmsrc_filename)
+ARCH_URLS[gdbmsrc_filename] = gdbmsrc_uri
+
+file gdbmdllh_path => gdbmsrc_path do
+  cd prereq_path do
+    sys("unzip -o -q -j -d include #{gdbmsrc_path} src/gdbm/*/*/gdbm-dll.h")
+  end
+end
+
+task :prereq => gdbmdllh_path
 
 ############################################################################
 # PDCurses
