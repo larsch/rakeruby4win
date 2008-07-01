@@ -152,6 +152,10 @@ file UNZIP_EXE => unzip_pkg do
   end
 end
 
+file unzip_pkg do
+  download unzipuri, unzip_pkg
+end
+
 #
 # Package definitions
 #
