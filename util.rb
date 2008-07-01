@@ -225,6 +225,12 @@ def get_doc(url)
 end
 
 def findfile(url, re, excl_re = nil)
+  uricachekey = url.to_s + re.to_s + excl_re.to_s
+  $cache.uricache ||= {}
+  if uri = $cache.uricache[uricachekey]
+    return uri
+  end
+  
   doc = get_doc(url)
   newestver = nil
   newesturi = nil
@@ -244,7 +250,10 @@ def findfile(url, re, excl_re = nil)
   if newesturi.nil?
     raise "Could not find anything matching #{re.inspect} on #{url}"
   end
-  return determineurl(newesturi)
+
+  uri = determineurl(newesturi)
+  $cache.uricache[uricachekey] = uri
+  return uri
 end
 
 def findfilex(url, re)
@@ -355,9 +364,7 @@ end
 def pkggroup(pkgname, directory)
   @urls = []
   def pkg(url, re, excl_re = nil)
-    $cache.uricache ||= {}
-    hash = url.to_s + re.to_s + excl_re.to_s
-    @urls << ($cache.uricache[hash] ||= findfile(url, re, excl_re))
+    @urls << findfile(url, re, excl_re)
   end
   
   yield
