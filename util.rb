@@ -49,13 +49,13 @@ def extract(path)
       gsub(/\.bz2$/,'')
     File.unlink(tar) if File.exist?(tar)
     sys("bzip2 -d #{basename}")
-    sys("tar xf #{tar}")
+    sys("tar Uxf #{tar}")
     File.unlink(tar) if File.exist?(tar)
   when /\.tar\.gz$/i
     tar = basename.gsub(/\.gz$/,'')
     File.unlink(tar) if File.exist?(tar)
     sys("gzip -d #{basename}")
-    sys("tar xf #{tar}")
+    sys("tar Uxf #{tar}")
     File.unlink(tar) if File.exist?(tar)
   when /\.zip$/i
     sys("unzip -o -q #{basename}")
@@ -176,6 +176,7 @@ class Version < Array
   include Comparable
   
   def initialize(str)
+    str = str.sub(/\.(tar.(gz|bz2)|tgz|zip)$/,'')
     parts = str.scan(/\d+|[a-z]+/).map { |x| (x =~ /^\d+$/) ? x.to_i : x }
     super(parts)
   end
@@ -228,7 +229,11 @@ def findfile(url, re, excl_re = nil)
   newestver = nil
   newesturi = nil
   doc.search("//a") { |a|
-    if a.inner_text =~ re and (excl_re.nil? or a.inner_text !~ excl_re)
+    path = a['href']
+    next if path.nil?
+    filename = File.basename(path)
+    if (a.inner_text =~ re and (excl_re.nil? or a.inner_text !~ excl_re)) or
+        (filename =~ re and (excl_re.nil? or filename !~ excl_re))
       ver = Version.new(a.inner_text)
       if newestver.nil? or ver > newestver
         newestver = ver
@@ -236,7 +241,10 @@ def findfile(url, re, excl_re = nil)
       end
     end
   }
-  return newesturi
+  if newesturi.nil?
+    raise "Could not find anything matching #{re.inspect} on #{url}"
+  end
+  return determineurl(newesturi)
 end
 
 def findfilex(url, re)
@@ -266,6 +274,7 @@ end
 def findfile_ftp(url, re)
   uri = URI.parse(url)
   filename = nil
+  puts "FTP LIST #{url}"
   Net::FTP.open(uri.host, 'anonymous', 'nil') do |ftp|
     ftp.chdir(uri.path)
     ftp.list.each { |fnrow|
@@ -274,7 +283,7 @@ def findfile_ftp(url, re)
       end
     }
   end
-  uri.path = File.join(uri.path, filename)
+  uri.path = '/' + File.join(uri.path, filename)
   return uri
 end
 
@@ -346,7 +355,9 @@ end
 def pkggroup(pkgname, directory)
   @urls = []
   def pkg(url, re, excl_re = nil)
-    @urls << findfile(url, re, excl_re)
+    $cache.uricache ||= {}
+    hash = url.to_s + re.to_s + excl_re.to_s
+    @urls << ($cache.uricache[hash] ||= findfile(url, re, excl_re))
   end
   
   yield
@@ -358,8 +369,14 @@ def pkggroup(pkgname, directory)
   task pkgname => pkg_checkpoint
 
   add_pkg_uri(*@urls)
-  
-  file pkg_checkpoint => [ directory, pkgnames ].flatten do
+
+  if pkgnames.find { |x| x !~ /\.zip$/ }
+    dep = :hostprereq
+  else
+    dep = UNZIP_EXE
+  end
+
+  file pkg_checkpoint => [ dep, directory, pkgnames ].flatten do
     cd(directory)
     pkgnames.each { |pkg|
       extract(pkg)
@@ -369,4 +386,3 @@ def pkggroup(pkgname, directory)
     
   undef pkg
 end
-
