@@ -199,6 +199,7 @@ pkggroup :msys, MSYS_ROOT do
   pkg msyssupp_url, /^perl-\d.*\.tar\.bz2$/, /-src\.tar/ # Perl (dependency of autoconf)
   pkg msyssupp_url, /^crypt-.*\.tar\.bz2$/, /-src\./ # libcrypt (dependency of perl)
   pkg msyssupp_url, /^bison-\d.*\.tar\./, /-src\./
+  pkg msyssupp_url, /^m4-1.\d+.\d+-MSYS.tar.bz2$/ # actually m4 from older msys release, but the one in 1.0.11 is 1.4
 end
 
 task :default => [:build]
