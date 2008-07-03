@@ -127,9 +127,7 @@ ENV['PATH'] += ';' + hostprereq_path.gsub(/\//, '\\') + '\\bin' +
 #   # 'unzip' => ['bin', 'dep']
 # }
 
-def unzip_pkg
-  File.join(PKG_PATH, File.basename(unzipuri.path))
-end
+unzip = pkg 'unzip', 'ftp://tug.ctan.org/tex-archive/tools/zip/info-zip/WIN32/', /(unz[^-]+\.exe)/
 
 directory prereq_path
 directory hostmingw_path
@@ -142,18 +140,14 @@ bzip2_exe = File.join(hostprereq_path, 'bin', 'bzip2.exe')
 gzip_exe = File.join(hostprereq_path, 'bin', 'gzip.exe')
 tar_exe = File.join(hostprereq_path, 'bin', 'tar.exe')
 
-file UNZIP_EXE => unzip_pkg do
+file UNZIP_EXE => unzip.pkgpath do
   if not File.exist?(UNZIP_EXE)
     unzdir = File.join(hostprereq_path, 'bin')
-    mkdir_p(unzdir)
+    mkdir_p unzdir
     cd unzdir do
-      sys(unzip_pkg, '-o', '-q', 'unzip.exe')
+      sys(unzip.pkgpath, '-o', '-q', 'unzip.exe')
     end
   end
-end
-
-file unzip_pkg do
-  download unzipuri, unzip_pkg
 end
 
 #
@@ -161,45 +155,45 @@ end
 #
 
 pkggroup :prereq, prereq_path do
-  pkg "http://gnuwin32.sourceforge.net/packages/gdbm.htm", /^gdbm-bin-zip/
-  pkg "http://gnuwin32.sourceforge.net/packages/gdbm.htm", /^gdbm-lib-zip/
-  pkg "http://gnuwin32.sourceforge.net/packages/readline.htm", /^readline-bin-zip/
-  pkg "http://gnuwin32.sourceforge.net/packages/readline.htm", /^readline-lib-zip/
-  pkg "http://gnuwin32.sourceforge.net/packages/zlib.htm", /^zlib-bin-zip/
-  pkg "http://gnuwin32.sourceforge.net/packages/zlib.htm", /^zlib-lib-zip/
-  pkg "http://gnuwin32.sourceforge.net/packages/libiconv.htm", /^libiconv-bin-zip/
-  pkg "http://gnuwin32.sourceforge.net/packages/libiconv.htm", /^libiconv-lib-zip/
+  pkg 'gdbmbin', "http://gnuwin32.sourceforge.net/packages/gdbm.htm", /^gdbm-bin-zip/
+  pkg 'gdbmlib', "http://gnuwin32.sourceforge.net/packages/gdbm.htm", /^gdbm-lib-zip/
+  pkg 'readlinebin', "http://gnuwin32.sourceforge.net/packages/readline.htm", /^readline-bin-zip/
+  pkg 'readlinelib', "http://gnuwin32.sourceforge.net/packages/readline.htm", /^readline-lib-zip/
+  pkg 'zlibbin', "http://gnuwin32.sourceforge.net/packages/zlib.htm", /^zlib-bin-zip/
+  pkg 'zliblib', "http://gnuwin32.sourceforge.net/packages/zlib.htm", /^zlib-lib-zip/
+  pkg 'libiconvbin', "http://gnuwin32.sourceforge.net/packages/libiconv.htm", /^libiconv-bin-zip/
+  pkg 'libiconvlib', "http://gnuwin32.sourceforge.net/packages/libiconv.htm", /^libiconv-lib-zip/
 end
 
 pkggroup :hostprereq, hostprereq_path do
-  pkg "http://gnuwin32.sourceforge.net/packages/gtar.htm", /^tar-bin-zip/
-  pkg "http://gnuwin32.sourceforge.net/packages/gtar.htm", /^tar-dep-zip/
-  pkg "http://gnuwin32.sourceforge.net/packages/bzip2.htm", /^bzip2-bin-zip/
-  pkg "http://gnuwin32.sourceforge.net/packages/gzip.htm", /^gzip-bin-zip/
+  pkg 'tarbin', "http://gnuwin32.sourceforge.net/packages/gtar.htm", /^tar-bin-zip/
+  pkg 'tardep', "http://gnuwin32.sourceforge.net/packages/gtar.htm", /^tar-dep-zip/
+  pkg 'bzip2bin', "http://gnuwin32.sourceforge.net/packages/bzip2.htm", /^bzip2-bin-zip/
+  pkg 'gzipbin', "http://gnuwin32.sourceforge.net/packages/gzip.htm", /^gzip-bin-zip/
 end
 
 pkggroup :mingw, hostmingw_path do
-  pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=82723", /^gcc-core-.*.tar.gz$/
-  pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11290", /^binutils-2\.17.*\d\.tar\.gz$/, /-src\.tar\.gz$/
-  pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=23918", /^mingw32-make-.*\.tar\.gz$/, /-src.*\.tar\.gz$/
-  pkg "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11550", /^w32api-.*\.tar\.gz$/, /-src\.tar\.gz$/
+  pkg 'gcccore', "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=82723", /^gcc-core-.*.tar.gz$/
+  pkg 'binutils', "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11290", /^binutils-2\.17.*\d\.tar\.gz$/, /-src\.tar\.gz$/
+  pkg 'mingw32make', "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=23918", /^mingw32-make-.*\.tar\.gz$/, /-src.*\.tar\.gz$/
+  pkg 'w32api', "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11550", /^w32api-.*\.tar\.gz$/, /-src\.tar\.gz$/
 end
 
 pkggroup :msys, MSYS_ROOT do
   msys_url = "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=24963"
   packs = [ 'bash', 'bzip2', 'coreutils', 'findutils', 'gawk', 'lzma', 'make', 'tar' ]
   packs.each { |pack|
-    pkg msys_url, /^#{pack}-.*-MSYS-\d+\.\d+\.\d+-(\d+|snapshot)(-bin)?\.tar\.(gz|bz2)$/
+    pkg pack, msys_url, /^#{pack}-.*-MSYS-\d+\.\d+\.\d+-(\d+|snapshot)(-bin)?\.tar\.(gz|bz2)$/
   }
-  pkg msys_url, /^MSYS-\d+\.\d+\.\d+-\d+\.tar\.bz2$/
-  pkg msys_url, /^msysCORE-(.*).tar\.bz2$/
+  pkg 'msys', msys_url, /^MSYS-\d+\.\d+\.\d+-\d+\.tar\.bz2$/
+  pkg 'msyscore', msys_url, /^msysCORE-(.*).tar\.bz2$/
 
   msyssupp_url = "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=67879"
-  pkg msyssupp_url, /^autoconf2.5.*-bin\.tar\.bz2$/ # autoconf
-  pkg msyssupp_url, /^perl-\d.*\.tar\.bz2$/, /-src\.tar/ # Perl (dependency of autoconf)
-  pkg msyssupp_url, /^crypt-.*\.tar\.bz2$/, /-src\./ # libcrypt (dependency of perl)
-  pkg msyssupp_url, /^bison-\d.*\.tar\./, /-src\./
-  pkg msyssupp_url, /^m4-1.\d+.\d+-MSYS.tar.bz2$/ # actually m4 from older msys release, but the one in 1.0.11 is 1.4
+  pkg 'autoconf', msyssupp_url, /^autoconf2.5.*-bin\.tar\.bz2$/ # autoconf
+  pkg 'perl', msyssupp_url, /^perl-\d.*\.tar\.bz2$/, /-src\.tar/ # Perl (dependency of autoconf)
+  pkg 'crypt', msyssupp_url, /^crypt-.*\.tar\.bz2$/, /-src\./ # libcrypt (dependency of perl)
+  pkg 'bison', msyssupp_url, /^bison-\d.*\.tar\./, /-src\./
+  pkg 'm4', msyssupp_url, /^m4-1.\d+.\d+-MSYS.tar.bz2$/ # actually m4 from older msys release, but the one in 1.0.11 is 1.4
 end
 
 task :default => [:build]
@@ -282,14 +276,11 @@ task :clean_sandbox do
   rm_rf sandbox_path
 end
 
-rubygemzip_uri = rubygemsuri
-rubygem_zipfile = File.basename(rubygemzip_uri.path)
-rubygem_zippath = File.join(PKG_PATH, rubygem_zipfile)
-ARCH_URLS[rubygem_zipfile] = rubygemzip_uri
+rubygemzip = pkg 'rubygemzip', 'http://rubyforge.org/frs/?group_id=126', /^rubygems-(\d+(\.\d+)*)\.zip$/
 
 task :install => [ :install_nodoc, :install_prereq, :install_rubygems, :install_gems ]
 
-task :install_nodoc => [ :build, rubygem_zippath ] do
+task :install_nodoc => [ :build ] do
   rm_rf(tmpinstall_path)
   Dir.chdir(build_path) do
     msys_sh("make install-nodoc DESTDIR=#{makemsyspath(tmpinstall_path)}")
@@ -325,18 +316,16 @@ task :update_versions_txt do
   system("#{ruby} versions.rb > versions.txt")
 end
 
-task :install_rubygems => rubygem_zippath do
-  tmprubygems = File.join(WORK_ROOT, 'tmprubygemsinst')
-  rm_rf(tmprubygems)
-  mkdir_p(tmprubygems)
-  cd tmprubygems do
-    extract(rubygem_zippath)
-    cd File.dirname(Dir['*/setup.rb'][0]) do
-      ruby = File.join(tmpinstall_path, 'bin', 'ruby.exe')
-      sys(ruby, 'setup.rb')
+task :install_rubygems => rubygemzip.pkgpath do
+  in_tmpdir do
+    cd tmprubygems do
+      extract(rubygemzip.pkgpath)
+      cd File.dirname(Dir['*/setup.rb'][0]) do
+        ruby = File.join(tmpinstall_path, 'bin', 'ruby.exe')
+        sys(ruby, 'setup.rb')
+      end
     end
   end
-  rm_rf(tmprubygems)
 end
 
 RUBY_EXT = {
@@ -396,7 +385,7 @@ task :install_test_ext do
 end
 
 if which("svn.exe").nil?
-  svnbin = pkgz 'svnbin', "http://subversion.tigris.org/servlets/ProjectDocumentList?folderID=8100", /^svn-win32-\d+(\.\d+)*\.zip$/
+  svnbin = pkg 'svnbin', "http://subversion.tigris.org/servlets/ProjectDocumentList?folderID=8100", /^svn-win32-\d+(\.\d+)*\.zip$/
   svnbin_checkpoint = File.join(hostprereq_path, "svnbin_checkpoint")
   task :hostprereq => svnbin_checkpoint do
     ENV['PATH'] += ';' + File.join(Dir.glob(File.join(hostprereq_path, 'svn-win32-*')), 'bin').gsub(/\//, '\\')
@@ -413,15 +402,14 @@ end
 # GDBM gdbm-dll.h cludge
 ############################################################################
 
-gdbmdllh_path = File.join(prereq_path, 'include', 'gdbm-dll.h')
-gdbmsrc_uri = findfile "http://gnuwin32.sourceforge.net/packages/gdbm.htm", /^gdbm-src-zip/
-gdbmsrc_filename = File.basename(gdbmsrc_uri.path)
-gdbmsrc_path = File.join(PKG_PATH, gdbmsrc_filename)
-ARCH_URLS[gdbmsrc_filename] = gdbmsrc_uri
+gdbmsrc = pkg 'gdbmsrc', "http://gnuwin32.sourceforge.net/packages/gdbm.htm", /^gdbm-src-zip/
 
-file gdbmdllh_path => gdbmsrc_path do
+gdbmdllh_path = File.join(prereq_path, 'include', 'gdbm-dll.h')
+
+file gdbmdllh_path => [ gdbmsrc.pkgpath, prereq_path ] do
   cd prereq_path do
-    sys("unzip -o -q -j -d include #{gdbmsrc_path} src/gdbm/*/*/gdbm-dll.h")
+    mkdir_p 'include'
+    sys("unzip -o -q -j -d include #{gdbmsrc.pkgpath} src/gdbm/*/*/gdbm-dll.h")
   end
 end
 
@@ -431,44 +419,42 @@ task :prereq => gdbmdllh_path
 # PDCurses
 ############################################################################
 
-pdcurses_uri = pdcursesuri
-pdcurses_filename = File.basename(pdcurses_uri.path)
-pdcurses_path = File.join(PKG_PATH, pdcurses_filename)
-ARCH_URLS[pdcurses_filename] = pdcurses_uri
+pdcurses = pkg 'pdcurses', 'http://sourceforge.net/project/showfiles.php?group_id=30480&package_id=22452', /^pdc(\d)+dll\.zip$/
+
 pdcurses_checkpoint = File.join(prereq_path, 'pdcurses_checkpoint')
-file pdcurses_checkpoint => pdcurses_path do
+
+file pdcurses_checkpoint => pdcurses.pkgpath do
   in_tmpdir do
-    extract pdcurses_path
+    extract pdcurses.pkgpath
     cp Dir.glob('*.h'), File.join(prereq_path, 'include')
     cp Dir.glob('*.lib'), File.join(prereq_path, 'lib')
     cp Dir.glob('*.dll'), File.join(prereq_path, 'bin')
   end
   touch pdcurses_checkpoint
 end
+
 task :prereq => pdcurses_checkpoint
 
 ############################################################################
 # OpenSSL
 ############################################################################
 
-openssl_uri = openssluri
-openssl_filename = File.basename(openssl_uri.path)
-ARCH_URLS[openssl_filename] = openssl_uri
+openssl = pkg 'openssl', "http://www.openssl.org/source/", /^openssl-(\d+.*)\.tar\.gz$/
 
-openssl_path = File.join(PKG_PATH, openssl_filename)
 opensslbuild_path = File.join(WORK_ROOT, 'openssl-build')
 directory opensslbuild_path
 
 openssl_checkpoint = File.join(prereq_path, 'openssl_checkpoint')
+
 opensslbuild_checkpoint = File.join(opensslbuild_path, 'opensslbuild_checkpoint')
 
 task :opensslbuild => opensslbuild_checkpoint
 
-file opensslbuild_checkpoint => openssl_path do
+file opensslbuild_checkpoint => openssl.pkgpath do
   rm_rf opensslbuild_path
   mkdir_p opensslbuild_path
   cd opensslbuild_path do
-    extract openssl_path
+    extract openssl.pkgpath
     cd File.dirname(Dir['*/configure'][0]) do
       sys("ms\\mingw32.bat")
     end
@@ -486,6 +472,7 @@ file openssl_checkpoint => opensslbuild_checkpoint do
   end
   touch openssl_checkpoint
 end
+
 task :prereq => openssl_checkpoint
 
 ############################################################################
@@ -523,7 +510,7 @@ task :update_rubyinst_iss do
 end
 
 desc "Build the Ruby for Windows installer"
-task :installer => [ 'rubyinst.iss', 'versions.txt' ] do
+task :installer => [ :install, 'rubyinst.iss', 'versions.txt' ] do
   iscc = find_iscc
   sys(iscc, '/Q', 'rubyinst.iss')
 end

@@ -7,6 +7,16 @@ require 'rubygems'
 gem 'hpricot'
 autoload :OpenStruct, 'ostruct'
 
+def pkg(*args, &block)
+  $cache.pkg ||= {}
+  thepkg = ($cache.pkg[args[0]] ||= Package.new(*args, &block))
+  file thepkg.pkgpath do
+    download(thepkg.uri, thepkg.pkgpath)
+  end
+  return thepkg
+end
+alias :globalpkg :pkg
+
 def make_path(path)
   elems = path.split(File::SEPARATOR)
   (1..elems.size).each { |parts|
@@ -29,17 +39,6 @@ def sys(*cmd)
   sys_k(*cmd) or raise "External command failed: #{$?.inspect}"
 end
 
-=begin
-def copy_file(src, dst)
-  File.open(src, "rb") { |fin|
-    File.open(dst, "wb") { |fout|
-      while data = fin.read(0x10000)
-        fout.write(data)
-      end
-    }
-  }
-end
-=end
 def extract(path)
   basename = File.basename(path)
   copy_file(path, basename)
@@ -206,7 +205,11 @@ def Version(str)
 end
 
 def get_doc_do(url)
-  uri = URI.parse(url)
+  if url.is_a?(URI)
+    uri = url
+  else
+    uri = URI.parse(url)
+  end
   Net::HTTP.start(uri.host, uri.port) do |http|
     puts "GET #{uri}"
     r, d = http.get(uri.request_uri)
@@ -246,7 +249,7 @@ def findfile(url, re, excl_re = nil)
       ver = Version.new(a.inner_text)
       if newestver.nil? or ver > newestver
         newestver = ver
-        newesturi = URI.join(url, a['href'])
+        newesturi = URI.join(url.to_s, a['href'])
       end
     end
   }
@@ -283,53 +286,20 @@ def findfilex(url, re)
   return newesturi
 end
 
-def findfile_ftp(url, re)
-  uri = URI.parse(url)
+def findfile_ftp(uri, re, excl_re)
   filename = nil
-  puts "FTP LIST #{url}"
+  puts "FTP LIST #{uri}"
   Net::FTP.open(uri.host, 'anonymous', 'nil') do |ftp|
     ftp.chdir(uri.path)
     ftp.list.each { |fnrow|
-      if fnrow =~ /\s(unz[^-]+\.exe)$/
-        filename = $1
+      if fnrow =~ re and (excl_re.nil? or fnrow !~ excl_re)
+        filename = $&
       end
     }
   end
   uri.path = '/' + File.join(uri.path, filename)
   return uri
 end
-
-def openssluri
-  $cache.openssluri ||= findfile("http://www.openssl.org/source/", /^openssl-(\d+.*)\.tar\.gz$/)
-end
-
-def rubygemsuri
-  $cache.rubygemsuri ||= findfile("http://rubyforge.org/frs/?group_id=126", /^rubygems-(\d+(\.\d+)*)\.zip$/)
-end
-
-def unzipuri
-  $cache.unzipuri ||= findfile_ftp("ftp://tug.ctan.org/tex-archive/tools/zip/info-zip/WIN32/", /\s(unz[^-]+\.exe)$/)
-end
-
-def pdcursesuri
-  $cache.pdcursesuri ||= findfile("http://sourceforge.net/project/showfiles.php?group_id=30480&package_id=22452",
-                                  /^pdc(\d)+dll\.zip$/)
-end
-
-# def find_msysbasepackages
-#   msysbasesystem_downloadpage = "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=24963"
-#   urls = []
-#   packs = [ 'bash', 'bzip2', 'coreutils', 'findutils', 'gawk', 'lzma', 'make', 'tar' ]
-#   packs.each { |pack|
-#     urls << determineurl(findfile(msysbasesystem_downloadpage, /^#{pack}-.*-MSYS-\d+\.\d+\.\d+-(\d+|snapshot)(-bin)?\.tar\.(gz|bz2)$/))
-#   }
-#   urls << determineurl(findfile(msysbasesystem_downloadpage, /^MSYS-\d+\.\d+\.\d+-\d+\.tar\.bz2$/))
-#   urls << determineurl(findfile(msysbasesystem_downloadpage, /^msysCORE-(.*).tar\.bz2$/))
-# end
-
-# def msysbasepackages
-#   $cache.msysbasepackages ||= find_msysbasepackages
-# end
 
 def in_tmpdir
   path = File.join(WORK_ROOT, 'tmptmptmp')
@@ -355,30 +325,25 @@ def find_iscc
   end
 end
 
-def add_pkg_uri(*uris)
-  uris.each { |uri|
-    pkg = File.join(PKG_PATH, File.basename(uri.path))
-    file pkg do
-      download(uri, pkg)
-    end
-  }
+class PackageGroup
+  attr_reader :pkgs
+  def initialize
+    @pkgs = []
+  end
+  def pkg(*args, &block)
+    @pkgs << globalpkg(*args, &block)
+  end
 end
 
-def pkggroup(pkgname, directory)
-  @urls = []
-  def pkg(url, re, excl_re = nil)
-    @urls << findfile(url, re, excl_re)
-  end
-  
-  yield
-  
-  pkgnames = @urls.map { |uri| File.join(PKG_PATH, File.basename(uri.path)) }
+def pkggroup(pkgname, directory, &block)
+  pg = PackageGroup.new
+  pg.instance_eval(&block)
+
+  pkgnames = pg.pkgs.map { |pg| File.join(PKG_PATH, File.basename(pg.uri.path)) }
 
   pkg_checkpoint = File.join(directory, "#{pkgname}_checkpoint")
   
   task pkgname => pkg_checkpoint
-
-  add_pkg_uri(*@urls)
 
   if pkgnames.find { |x| x !~ /\.zip$/ }
     dep = :hostprereq
@@ -393,6 +358,37 @@ def pkggroup(pkgname, directory)
     }
     touch(pkg_checkpoint)
   end
-    
-  undef pkg
+end
+
+class Package
+  attr_reader :uri
+  attr_reader :pkgpath
+  
+  def initialize(name, dlpage = nil, re = nil, excl_re = nil, &block)
+    @match = []
+    @nomatch = []
+    downloadpage dlpage
+    match re
+    nomatch excl_re
+    instance_eval &block if block
+    case @downloadpage.scheme
+    when 'http'
+      @uri = findfile(@downloadpage, match[0], nomatch[0])
+    when 'ftp'
+      @uri = findfile_ftp(@downloadpage, match[0], nomatch[0])
+    else
+      fail "Unsupported scheme: #{dluri}"
+    end
+    @pkgpath = File.join(PKG_PATH, File.basename(@uri.path))
+  end
+  
+  def downloadpage(uri)
+    @downloadpage = URI.parse(uri)
+  end
+  def match(*re)
+    @match.push(*re)
+  end
+  def nomatch(*re)
+    @nomatch.push(*re)
+  end
 end
