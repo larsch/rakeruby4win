@@ -395,6 +395,20 @@ task :install_test_ext do
   end
 end
 
+if which("svn.exe").nil?
+  svnbin = pkgz 'svnbin', "http://subversion.tigris.org/servlets/ProjectDocumentList?folderID=8100", /^svn-win32-\d+(\.\d+)*\.zip$/
+  svnbin_checkpoint = File.join(hostprereq_path, "svnbin_checkpoint")
+  task :hostprereq => svnbin_checkpoint do
+    ENV['PATH'] += ';' + File.join(Dir.glob(File.join(hostprereq_path, 'svn-win32-*')), 'bin').gsub(/\//, '\\')
+  end
+  file svnbin_checkpoint => svnbin.pkgpath do
+    cd hostprereq_path do
+      extract(svnbin.pkgpath)
+    end
+    touch svnbin_checkpoint
+  end
+end
+
 ############################################################################
 # GDBM gdbm-dll.h cludge
 ############################################################################
