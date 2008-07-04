@@ -452,14 +452,12 @@ opensslbuild_checkpoint = File.join(opensslbuild_path, 'opensslbuild_checkpoint'
 task :opensslbuild => opensslbuild_checkpoint
 
 file opensslbuild_checkpoint => openssl.pkgpath do
-  rm_rf opensslbuild_path
-  mkdir_p opensslbuild_path
   cd opensslbuild_path do
     extract openssl.pkgpath
     cd File.dirname(Dir['*/configure'][0]) do
       sys("ms\\mingw32.bat")
       # The above does not exit with an errorlevel, so check for the output files
-      if not (File.exist?('libeay32.dll') and File.exist?('libssl32.dll') and File.exist?('lib/libssl32.a') and File.exist?('lib/libeay32.a'))
+      if not (File.exist?('libeay32.dll') and File.exist?('libssl32.dll') and File.exist?('out/libcrypto.a') and File.exist?('out/libssl32.a') and File.exist?('out/libeay32.a'))
         fail "Failed building OpenSSL"
       end
     end
