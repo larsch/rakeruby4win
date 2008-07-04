@@ -177,6 +177,7 @@ pkggroup :mingw, hostmingw_path do
   pkg 'binutils', "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11290", /^binutils-2\.17.*\d\.tar\.gz$/, /-src\.tar\.gz$/
   pkg 'mingw32make', "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=23918", /^mingw32-make-.*\.tar\.gz$/, /-src.*\.tar\.gz$/
   pkg 'w32api', "http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11550", /^w32api-.*\.tar\.gz$/, /-src\.tar\.gz$/
+  pkg 'mingw-runtime', 'http://sourceforge.net/project/showfiles.php?group_id=2435&package_id=11598&release_id=564371', /^mingw-runtime-.*\.tar\.gz$/, /-src\./
 end
 
 pkggroup :msys, MSYS_ROOT do
