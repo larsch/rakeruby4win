@@ -429,6 +429,11 @@ file pdcurses_checkpoint => pdcurses.pkgpath do
     cp Dir.glob('*.lib'), File.join(prereq_path, 'lib')
     cp Dir.glob('*.dll'), File.join(prereq_path, 'bin')
   end
+  cd prereq_path do
+    cd 'lib' do
+      cp 'pdcurses.lib', 'libcurses.a'
+    end
+  end
   touch pdcurses_checkpoint
 end
 
