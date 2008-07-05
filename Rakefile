@@ -233,6 +233,15 @@ task :benchmark do
   end
 end
 
+desc "Run full ruby test suite"
+task :check do
+  Dir.chdir build_path do
+    with_path File.join(prereq_path, 'bin') do
+      msys_sh("make check")
+    end
+  end
+end
+
 file configure_script => [ sandbox_path, :prereq ] do
   Dir.chdir(sandbox_path) do
     autoconf = Dir.glob(File.join(MSYS_ROOT, 'bin', 'autoconf*'))[0] ||
