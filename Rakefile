@@ -319,12 +319,10 @@ end
 
 task :install_rubygems => rubygemzip.pkgpath do
   in_tmpdir do
-    cd tmprubygems do
-      extract(rubygemzip.pkgpath)
-      cd File.dirname(Dir['*/setup.rb'][0]) do
-        ruby = File.join(tmpinstall_path, 'bin', 'ruby.exe')
-        sys(ruby, 'setup.rb')
-      end
+    extract(rubygemzip.pkgpath)
+    cd File.dirname(Dir['*/setup.rb'][0]) do
+      ruby = File.join(tmpinstall_path, 'bin', 'ruby.exe')
+      sys(ruby, 'setup.rb')
     end
   end
 end
